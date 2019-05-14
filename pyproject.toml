@@ -1,0 +1,18 @@
+[build-system]
+requires = ["flit"]
+build-backend = "flit.buildapi"
+
+[tool.flit.metadata]
+module = "hdf5_vds_check"
+author = "European XFEL GmbH"
+author-email = "cas-support@xfel.eu"
+home-page = "https://github.com/European-XFEL/hdf5-vds-check"
+description-file = "README.md"
+requires-python = ">=3.6"
+requires = [
+    "h5py >=2.9.0",
+]
+classifiers = ["License :: OSI Approved :: BSD License"]
+
+[tool.flit.scripts]
+hdf5-vds-check = "hdf5_vds_check:main"

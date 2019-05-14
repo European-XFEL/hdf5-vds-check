@@ -15,6 +15,8 @@ import h5py
 import os
 import sys
 
+__version__ = '1.0'
+
 def print_problem(filename, details):
     print("  {}:".format(filename))
     print("    ", details)
