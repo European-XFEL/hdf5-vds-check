@@ -11,24 +11,15 @@ problems opening the source files.
 
 import argparse
 from collections import defaultdict
-from functools import partial
 import h5py
 import os
 import sys
-
-class Status:
-    all_ok = True
-    found_virtual_dataset = False
 
 def print_problem(filename, details):
     print("  {}:".format(filename))
     print("    ", details)
 
-def check_dataset(path, obj, status):
-    if not isinstance(obj, h5py.Dataset) or not obj.is_virtual:
-        return
-
-    status.found_virtual_dataset = True
+def check_dataset(path, obj):
     print("Checking virtual dataset:", path)
 
     files_datasets = defaultdict(list)
@@ -46,7 +37,6 @@ def check_dataset(path, obj, status):
             src_file = h5py.File(src_path, 'r')
         except Exception as e:
             print_problem(src_path, e)
-            status.all_ok = False
             continue
 
         for src_dset in src_dsets:
@@ -54,18 +44,49 @@ def check_dataset(path, obj, status):
                 ds = src_file[src_dset]
             except KeyError:
                 print_problem(src_path, "Missing dataset: {}".format(src_dset))
-                status.all_ok = False
             else:
                 if isinstance(ds, h5py.Dataset):
                     n_ok += 1
                 else:
                     print_problem(src_path,
                                   "Not a dataset: {}".format(src_dset))
-                    status.all_ok = False
         src_file.close()
 
     print("  {}/{} sources accessible".format(n_ok, n_maps))
     print()
+    return n_maps - n_ok  # i.e number of inaccessible mappings
+
+def find_virtual_datasets(file: h5py.File):
+    """Return a list of 2-tuples: (path in file, dataset)"""
+    res = []
+
+    def visit(path, obj):
+        if isinstance(obj, h5py.Dataset) and obj.is_virtual:
+            res.append((path, obj))
+
+    file.visititems(visit)
+    return sorted(res)
+
+
+def check_file(filename):
+    n_problems = 0
+
+    with h5py.File(filename, 'r') as f:
+        virtual_dsets = find_virtual_datasets(f)
+
+        print(f"Found {len(virtual_dsets)} virtual datasets to check.")
+
+        for path, ds in virtual_dsets:
+            n_problems += check_dataset(path, ds)
+
+    if not virtual_dsets:
+        pass
+    elif n_problems == 0:
+        print("All virtual data sources accessible")
+    else:
+        print("ERROR: Access problems for virtual data sources")
+
+    return n_problems
 
 
 def main(argv=None):
@@ -73,16 +94,9 @@ def main(argv=None):
     ap.add_argument('file', help="File containing virtual datasets to check")
     args = ap.parse_args(argv)
 
-    f = h5py.File(args.file)
-    status = Status()
-    f.visititems(partial(check_dataset, status=status))
+    n_problems = check_file(args.file)
 
-    if not status.found_virtual_dataset:
-        print("No virtual datasets found in", args.file)
-    elif status.all_ok:
-        print("All virtual data sources accessible")
-    else:
-        print("ERROR: Access problems for virtual data sources")
+    if n_problems > 0:
         return 1
 
 if __name__ == '__main__':
