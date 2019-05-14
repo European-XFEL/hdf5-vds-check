@@ -9,3 +9,14 @@ a genuinely empty part of the dataset.
 
 This tool checks all virtual datasets in a file to alerts you to any
 problems opening the source files.
+
+## Install
+
+    pip install hdf5_vds_check
+
+## Usage
+
+    hdf5-vds-check file_with_virtual_datasets.h5
+
+If any sources for virtual datasets can't be accessed, it will list details of
+these, and then exit with status 1.
