@@ -14,6 +14,7 @@ from collections import defaultdict
 from functools import partial
 import h5py
 import os
+import sys
 
 class Status:
     all_ok = True
@@ -83,3 +84,6 @@ def main(argv=None):
     else:
         print("ERROR: Access problems for virtual data sources")
         return 1
+
+if __name__ == '__main__':
+    sys.exit(main())
