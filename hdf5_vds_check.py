@@ -10,10 +10,12 @@ problems opening the source files.
 """
 
 import argparse
-from collections import defaultdict
-import h5py
 import os
 import sys
+from collections import defaultdict
+from pathlib import Path
+
+import h5py
 
 __version__ = '1.0'
 
@@ -21,7 +23,46 @@ def print_problem(filename, details):
     print("  {}:".format(filename))
     print("    ", details)
 
-def check_dataset(path, obj):
+def resolve_source_file(src_file_name: str, vds_file: Path) -> Path:
+    """Resolve the path for a VDS source file
+
+    As described in the docs for H5Pset_virtual:
+    https://support.hdfgroup.org/documentation/hdf5/latest/group___d_c_p_l.html#gadec895092dbbedb94f85d9cacf8924f5
+    """
+    if src_file_name == ".":
+        return vds_file
+
+    src_file_name = Path(src_file_name)
+    if src_file_name.is_absolute():
+        # If an absolute path is not found, the basename is tried as a relative
+        # path instead. We're probably not handling all the different cases
+        # on Windows correctly - I'm focusing on Linux.
+        if not src_file_name.is_file():
+            resolved = resolve_source_file(src_file_name.name, vds_file)
+            if resolved.is_file():
+                return resolved
+
+        return src_file_name
+
+    # In this path, we have a relative path to the source file
+
+    if 'HDF5_VDS_PREFIX' in os.environ:
+        prefixes = [Path(p) for p in os.environ['HDF5_VDS_PREFIX'].split(os.pathsep)]
+    else:
+        prefixes = []
+    # By default, relative paths are from the folder containing the VDS file.
+    prefixes.append(vds_file.parent)
+
+    for prefix in prefixes:
+        if (p := prefix / src_file_name).is_file():
+            return p
+
+    # Fallback: just use the relative path from the CWD
+    return src_file_name
+
+
+
+def check_dataset(path, obj, vds_file: Path):
     print("Checking virtual dataset:", path)
 
     files_datasets = defaultdict(list)
@@ -33,10 +74,11 @@ def check_dataset(path, obj):
     n_ok = 0
     for src_path, src_dsets in files_datasets.items():
         try:
+            resolved_path = resolve_source_file(src_path, vds_file)
             # stat() gives nicer error messages for missing files, so
             # try that first.
-            os.stat(src_path)
-            src_file = h5py.File(src_path, 'r')
+            os.stat(resolved_path)
+            src_file = h5py.File(resolved_path, 'r')
         except Exception as e:
             print_problem(src_path, e)
             continue
@@ -70,7 +112,7 @@ def find_virtual_datasets(file: h5py.File):
     return sorted(res)
 
 
-def check_file(filename):
+def check_file(filename: Path):
     n_problems = 0
 
     with h5py.File(filename, 'r') as f:
@@ -79,7 +121,8 @@ def check_file(filename):
         print(f"Found {len(virtual_dsets)} virtual datasets to check.")
 
         for path, ds in virtual_dsets:
-            n_problems += check_dataset(path, ds)
+            print("In check_file", type(filename))
+            n_problems += check_dataset(path, ds, filename)
 
     if not virtual_dsets:
         pass
@@ -93,7 +136,8 @@ def check_file(filename):
 
 def main(argv=None):
     ap = argparse.ArgumentParser()
-    ap.add_argument('file', help="File containing virtual datasets to check")
+    ap.add_argument('file', type=Path,
+                    help="File containing virtual datasets to check")
     args = ap.parse_args(argv)
 
     n_problems = check_file(args.file)

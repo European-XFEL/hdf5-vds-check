@@ -1,4 +1,6 @@
 # coding: utf-8
+from pathlib import Path
+
 import h5py
 import numpy as np
 
@@ -24,6 +26,13 @@ def test_check_file(tmp_path):
         layout[2] = h5py.VirtualSource('testnothere.h5', 'nonexists', (10,))
         # 3: file exists, but don't have read permission
         layout[3] = h5py.VirtualSource('noaccess.h5', 'blah', (10,))
+        # 4: valid, using . to refer to the same file
+        layout[4] = h5py.VirtualSource('.', 'exists', (10,))
+        # 5: valid (if weird): the basename is tried when an absolute path doesn't exist
+        layout[5] = h5py.VirtualSource("/nonexistant/path/test.h5", 'exists', (10,))
+        # 6: file doesn't exist (absolute path)
+        layout[2] = h5py.VirtualSource('/nonexistant/path/testnothere.h5', 'nonexists', (10,))
+
         f.create_virtual_dataset('vds', layout)
 
-    assert hdf5_vds_check.check_file(filename) == 3  # 3 inaccessible sources
+    assert hdf5_vds_check.check_file(Path(filename)) == 4  # n inaccessible sources
