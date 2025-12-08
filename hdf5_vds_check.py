@@ -17,7 +17,7 @@ from pathlib import Path
 
 import h5py
 
-__version__ = '1.0'
+__version__ = '1.1'
 
 def print_problem(filename, details):
     print("  {}:".format(filename))
